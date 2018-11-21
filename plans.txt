@@ -1,0 +1,2 @@
+* Sort the graph according to a timeline- this is done by adding the nodes in decreasing order, because each node will be lower than the previous.
+* Recognize when one of the papers given in the arguments is being reference / cited in another given one, but not as influential. Right now we don't draw an edge in this case.

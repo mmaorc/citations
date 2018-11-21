@@ -3,8 +3,8 @@ from pathlib import Path
 import json
 from graphviz import Digraph
 from collections import namedtuple
+import argparse
 
-Details = namedtuple('Details', ['id', 'title', 'year', 'references'])
 
 paper_ids = ("36f768dbb12fb44f3faee814b97ad5e495094dcf",
              "2d7551bb6127067d469a810d412c7b149b7d54cc",
@@ -22,22 +22,51 @@ def get_paper_json(paper_id):
     return json.loads(contents)
 
 
-def render_graph_rec(dot, paper_id,  max_level, cur_level=0):
-    j = get_paper_json(paper_id)
-    dot.node(j['paperId'], f"{j['title']} ({j['year']})")
+def render_graph_rec(dot, paper_id, max_level, cur_level=0):
     if cur_level >= max_level:
         return
+    j = get_paper_json(paper_id)
+    if cur_level == 0:
+        dot.node(j['paperId'], f"{j['title']} ({j['year']})")
     for r in j['references']:
         if r['isInfluential']:
+            dot.node(r['paperId'], f"{r['title']} ({r['year']})")
             dot.edge(j['paperId'], r['paperId'])
             render_graph_rec(dot, r['paperId'], max_level, cur_level + 1)
 
 
-def ren(paper_ids):
+def render_graph_rec_cit(dot, paper_id,  max_level, cur_level=0):
+    if cur_level >= max_level:
+        return
+    j = get_paper_json(paper_id)
+    if cur_level == 0:
+        dot.node(j['paperId'], f"{j['title']} ({j['year']})")
+    for c in j['citations']:
+        if c['isInfluential']:
+            dot.node(c['paperId'], f"{c['title']} ({c['year']})")
+            dot.edge(c['paperId'], j['paperId'])
+            render_graph_rec_cit(dot, c['paperId'], max_level, cur_level + 1)
+
+
+def render_graph(paper_ids, depth, forward=False):
     dot = Digraph()
-    for id in paper_ids:
-        render_graph_rec(dot, id, 1)
+    if forward:
+        for id in paper_ids:
+            render_graph_rec_cit(dot, id, depth)
+    else:
+        for id in paper_ids:
+            render_graph_rec(dot, id, depth)
     dot.render('g', format='pdf')
 
 
-ren(paper_ids)
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", action="store_true",
+                        help="Forward (citations) drawing)")
+    parser.add_argument("-d", type=int, default=2,
+                        help="Recursion depth")
+    parser.add_argument("-id", action="append", required=True,
+                        help="Paper ID in SemanticScholar")
+    args = parser.parse_args()
+    render_graph(args.id, args.d, args.f)
