@@ -2,13 +2,7 @@ import urllib.request
 from pathlib import Path
 import json
 from graphviz import Digraph
-from collections import namedtuple
 import argparse
-
-
-paper_ids = ("36f768dbb12fb44f3faee814b97ad5e495094dcf",
-             "2d7551bb6127067d469a810d412c7b149b7d54cc",
-             "d834cac83c55ab7f14a9a05f9fd437813fff1403")
 
 
 def get_paper_json(paper_id):
@@ -59,9 +53,10 @@ def render_graph(paper_ids, depth, forward=False):
     dot.render('g', format='pdf')
 
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("-f", action="store_true",
+                        help="Forward (citations) drawing)")
     parser.add_argument("-f", action="store_true",
                         help="Forward (citations) drawing)")
     parser.add_argument("-d", type=int, default=2,
