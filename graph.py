@@ -1,12 +1,12 @@
 import urllib.request
 from pathlib import Path
 import json
-# from graphviz import Digraph
 import argparse
 import os
 import networkx as nx
 import plotly
 import plotly.graph_objs as go
+import numpy as np
 
 
 def get_paper_json(paper_id):
@@ -60,13 +60,6 @@ def create_graph(nodes_dict):
     return G
 
 
-#def calc_init_pos(nodes_dict):
-#    init_pos = {}
-#    for node_id, node in nodes_dict.items():
-#        # import pdb; pdb.set_trace()
-#        init_pos[node_id] = (0, node.data['year'])
-#    return init_pos
-
 def calc_init_pos(nodes_dict):
     init_pos = {}
     for node_id, node in nodes_dict.items():
@@ -76,44 +69,56 @@ def calc_init_pos(nodes_dict):
         init_pos[year].append(node_id)
     return [node_list for node_list in init_pos.values()]
 
-# ----------- Need to add text to draw proper text labels
 
-def plot_graph(G, init_pos=None):
-    print(init_pos)
-    #pos = nx.spring_layout(G, pos=init_pos, fixed=init_pos.keys())
-    #graphviz_layout(G)
-    # pos = nx.nx_agraph.graphviz_layout(G)
+def calc_labels(nodes_dict):
+    return [node.data['title'] for node in nodes_dict.values()]
+
+
+def calc_sizes(nodes_dict):
+    min_size = 10
+    max_size = 40
+    sizes = np.array([len(node.data['citations'])
+                      for node in nodes_dict.values()])
+    range_old = (sizes.max() - sizes.min())
+    range_new = (max_size - min_size)
+    sizes = (range_new / range_old) * (sizes - sizes.max()) + max_size
+    return sizes
+
+
+def plot_graph(G, init_pos, labels, sizes):
     pos = nx.shell_layout(G, nlist=init_pos)
-    print(pos)
-    #import pdb; pdb.set_trace()
 
     # Nodes
     Xn, Yn = zip(*[(p[0], p[1]) for p in pos.values()])
-    print(G.nodes())
-    import pdb; pdb.set_trace()
-    #for n in G.nodes():
-    #Xn.append(pos[
     trace_nodes = dict(type='scatter',
                        x=Xn,
                        y=Yn,
                        mode='markers',
-                       marker=dict(size=28, color='rgb(0,240,0)'),
-                       text=[],
+                       marker=dict(size=sizes,
+                                   colorscale='Viridis',
+                                   color=sizes,
+                                   colorbar=dict(title='Colorbar')),
+                       text=labels,
                        hoverinfo='text')
 
     # Edges
-    Xe = []
-    Ye = []
-    for e in G.edges():
-        Xe.extend([pos[e[0]][0], pos[e[1]][0], None])
-        Ye.extend([pos[e[0]][1], pos[e[1]][1], None])
-    trace_edges = dict(type='scatter',
-                       mode='lines',
-                       x=Xe,
-                       y=Ye,
-                       line=dict(width=1, color='rgb(25,25,25)'),
-                       hoverinfo='none'
-                       )
+    x0 = [pos[e[0]][0] for e in G.edges()]
+    y0 = [pos[e[0]][1] for e in G.edges()]
+    x1 = [pos[e[1]][0] for e in G.edges()]
+    y1 = [pos[e[1]][1] for e in G.edges()]
+    arrows_annotations = [dict(ax=x0[i],
+                               ay=y0[i],
+                               axref='x',
+                               ayref='y',
+                               x=x1[i],
+                               y=y1[i],
+                               xref='x',
+                               yref='y',
+                               arrowsize=1,
+                               arrowwidth=1,
+                               arrowhead=2,
+                               opacity=0.5)
+                          for i in range(0, len(x0))]
 
     # Layout
     axis = dict(showline=False,  # hide axis line, grid, ticklabels and  title
@@ -122,6 +127,7 @@ def plot_graph(G, init_pos=None):
                 showticklabels=False,
                 title=''
                 )
+
     layout = go.Layout(title='Citations graph',
                        showlegend=False,
                        xaxis=axis,
@@ -133,25 +139,19 @@ def plot_graph(G, init_pos=None):
                                    pad=0,
                                    ),
                        hovermode='closest',
+                       annotations = arrows_annotations
                        )
 
-    fig = dict(data=[trace_edges, trace_nodes], layout=layout)
+    fig = go.Figure(data=[trace_nodes], layout=layout)
     plotly.offline.plot(fig, auto_open=True)
 
 
 def render_graph(nodes_dict):
     G = create_graph(nodes_dict)
     init_pos = calc_init_pos(nodes_dict)
-    plot_graph(G, init_pos)
-
-# def render_graph(nodes_dict):
-#     dot = Digraph()
-#     for id, node in nodes_dict.items():
-#         data = node.data
-#         dot.node(id, f"{data['title']} ({data['year']})")
-#         for child_id in node.children:
-#             dot.edge(child_id, id)
-#     dot.render('g', format='pdf')
+    labels = calc_labels(nodes_dict)
+    sizes = calc_sizes(nodes_dict)
+    plot_graph(G, init_pos, labels, sizes)
 
 
 def bfs(start_node_id, depth):
