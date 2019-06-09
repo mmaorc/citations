@@ -11,6 +11,7 @@ nbformat==4.4.0
 networkx==2.3
 numpy==1.16.4
 plotly==3.10.0
+pygraphviz==1.5
 pyrsistent==0.15.2
 pytz==2019.1
 requests==2.22.0
