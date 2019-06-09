@@ -7,6 +7,8 @@ import networkx as nx
 import plotly
 import plotly.graph_objs as go
 import numpy as np
+from networkx.drawing.nx_agraph import write_dot, graphviz_layout
+
 
 
 def get_paper_json(paper_id):
@@ -60,18 +62,10 @@ def create_graph(nodes_dict):
     return G
 
 
-def calc_init_pos(nodes_dict):
-    init_pos = {}
-    for node_id, node in nodes_dict.items():
-        year = node.data['year']
-        if year not in init_pos:
-            init_pos[year] = []
-        init_pos[year].append(node_id)
-    return [node_list for node_list in init_pos.values()]
-
-
 def calc_labels(nodes_dict):
-    return [node.data['title'] for node in nodes_dict.values()]
+    href_str = "<a href=\"{}\" style=\"color: inherit; text-decoration: underline;\">{}</a>({})<br>citations: {}"
+    return [href_str.format(node.data['url'], node.data['title'], node.data['year'], len(node.data['citations']))
+            for node in nodes_dict.values()]
 
 
 def calc_sizes(nodes_dict):
@@ -85,8 +79,12 @@ def calc_sizes(nodes_dict):
     return sizes
 
 
-def plot_graph(G, init_pos, labels, sizes):
-    pos = nx.shell_layout(G, nlist=init_pos)
+def calc_years(nodes_dict):
+    return [node.data['year'] for node in nodes_dict.values()]
+
+
+def plot_graph(G, labels, sizes, years):
+    pos = graphviz_layout(G, prog='dot')
 
     # Nodes
     Xn, Yn = zip(*[(p[0], p[1]) for p in pos.values()])
@@ -95,10 +93,11 @@ def plot_graph(G, init_pos, labels, sizes):
                        y=Yn,
                        mode='markers',
                        marker=dict(size=sizes,
-                                   colorscale='Viridis',
-                                   color=sizes,
+                                   colorscale='Jet',
+                                   color=years,
                                    colorbar=dict(title='Colorbar')),
                        text=labels,
+                       textposition='top center',
                        hoverinfo='text')
 
     # Edges
@@ -148,10 +147,10 @@ def plot_graph(G, init_pos, labels, sizes):
 
 def render_graph(nodes_dict):
     G = create_graph(nodes_dict)
-    init_pos = calc_init_pos(nodes_dict)
     labels = calc_labels(nodes_dict)
     sizes = calc_sizes(nodes_dict)
-    plot_graph(G, init_pos, labels, sizes)
+    years = calc_years(nodes_dict)
+    plot_graph(G, labels, sizes, years)
 
 
 def bfs(start_node_id, depth):
