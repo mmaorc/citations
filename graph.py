@@ -1,4 +1,3 @@
-import urllib.request
 from pathlib import Path
 import json
 import argparse
@@ -8,6 +7,9 @@ import plotly
 import plotly.graph_objs as go
 import numpy as np
 from networkx.drawing.nx_agraph import graphviz_layout
+import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 
 # Paper scanning
@@ -25,10 +27,22 @@ def get_paper_json(paper_id):
     if Path(paper_info_filepath).exists():
         contents = Path(paper_info_filepath).read_text()
     else:
-        get_url = f"https://api.semanticscholar.org/v1/paper/{paper_id}"
-        contents = urllib.request.urlopen(get_url).read()
+        contents = request_paper(paper_id)
         Path(paper_info_filepath).write_bytes(contents)
-    return json.loads(contents)
+    contents = json.loads(contents)
+    if "error" in contents.keys():
+        return None
+    return contents
+
+
+def request_paper(paper_id):
+    s = requests.Session()
+    retries = Retry(total=5,
+                    backoff_factor=1,
+                    status_forcelist=[502, 503, 504])
+    s.mount('https://', HTTPAdapter(max_retries=retries))
+    d = s.get(f"https://api.semanticscholar.org/v1/paper/{paper_id}")
+    return d.content
 
 
 def get_node(id):
