@@ -47,6 +47,8 @@ def request_paper(paper_id):
 
 def get_node(id):
     data = get_paper_json(id)
+    if data is None:
+        return None
     citation_ids = []
     for citation in data['citations']:
         if citation['isInfluential']:
@@ -65,8 +67,12 @@ def bfs(start_node_id, depth):
         if node_id in nodes_dict:
             continue
 
-        # Save
+        # Get the node data
         node = get_node(node_id)
+        if node is None:
+            continue
+
+        # Save
         nodes_dict[node.id] = node
 
         # print
@@ -119,7 +125,10 @@ def calc_sizes(nodes_dict):
 
 
 def calc_years(nodes_dict):
-    return [node.data['year'] for node in nodes_dict.values()]
+    years = [node.data['year'] for node in nodes_dict.values()]
+    min_year = min([y for y in years if y is not None])
+    years = [y if y is not None else min_year for y in years]
+    return years
 
 
 def plot_graph(G, labels, sizes, years):
