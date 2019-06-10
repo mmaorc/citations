@@ -116,11 +116,14 @@ def calc_labels(nodes_dict):
 def calc_sizes(nodes_dict):
     min_size = 10
     max_size = 40
+    threshold = 200
     sizes = np.array([len(node.data['citations'])
                       for node in nodes_dict.values()])
+    sizes[sizes > threshold] = threshold
     range_old = (sizes.max() - sizes.min())
     range_new = (max_size - min_size)
-    sizes = (range_new / range_old) * (sizes - sizes.max()) + max_size
+    sizes = (sizes - sizes.min()) / range_old
+    sizes = range_new * sizes + min_size
     return sizes
 
 
