@@ -45,18 +45,18 @@ def request_paper(paper_id):
     return d.content
 
 
-def get_node(id):
+def get_node(id, extended=False):
     data = get_paper_json(id)
     if data is None:
         return None
     citation_ids = []
     for citation in data['citations']:
-        if citation['isInfluential']:
+        if extended or citation['isInfluential']:
             citation_ids.append(citation["paperId"])
     return Node(id, citation_ids, data)
 
 
-def bfs(start_node_id, depth):
+def bfs(start_node_id, depth, get_node):
     todo = [(start_node_id, 0)]
     nodes_dict = {}
 
@@ -210,10 +210,14 @@ if __name__ == "__main__":
                         help="Recursion depth")
     parser.add_argument("-id", required=True,
                         help="Paper ID in SemanticScholar")
+    parser.add_argument("-extended", action="store_true",
+                        help="Scan non influential as well")
     args = parser.parse_args()
 
     if not os.path.exists("papers"):
         os.mkdir("papers")
 
-    nodes_dict = bfs(args.id, args.d)
+    get_node_lam = lambda id: get_node(id, args.extended)
+
+    nodes_dict = bfs(args.id, args.d, get_node_lam)
     render_graph(nodes_dict)
