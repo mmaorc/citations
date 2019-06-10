@@ -7,8 +7,17 @@ import networkx as nx
 import plotly
 import plotly.graph_objs as go
 import numpy as np
-from networkx.drawing.nx_agraph import write_dot, graphviz_layout
+from networkx.drawing.nx_agraph import graphviz_layout
 
+
+# Paper scanning
+
+class Node:
+    def __init__(self, id, children, data):
+        self.id = id
+        self.children = children
+        self.data = data
+        self.leaf = False
 
 
 def get_paper_json(paper_id):
@@ -22,31 +31,47 @@ def get_paper_json(paper_id):
     return json.loads(contents)
 
 
-def render_graph_rec(dot, paper_id, max_level, cur_level=0):
-    if cur_level >= max_level:
-        return
-    j = get_paper_json(paper_id)
-    if cur_level == 0:
-        dot.node(j['paperId'], f"{j['title']} ({j['year']})")
-    for r in j['references']:
-        if r['isInfluential']:
-            dot.node(r['paperId'], f"{r['title']} ({r['year']})")
-            dot.edge(j['paperId'], r['paperId'])
-            render_graph_rec(dot, r['paperId'], max_level, cur_level + 1)
+def get_node(id):
+    data = get_paper_json(id)
+    citation_ids = []
+    for citation in data['citations']:
+        if citation['isInfluential']:
+            citation_ids.append(citation["paperId"])
+    return Node(id, citation_ids, data)
 
 
-def render_graph_rec_cit(dot, paper_id,  max_level, cur_level=0):
-    if cur_level >= max_level:
-        return
-    j = get_paper_json(paper_id)
-    if cur_level == 0:
-        dot.node(j['paperId'], f"{j['title']} ({j['year']})")
-    for c in j['citations']:
-        if c['isInfluential']:
-            dot.node(c['paperId'], f"{c['title']} ({c['year']})")
-            dot.edge(c['paperId'], j['paperId'])
-            render_graph_rec_cit(dot, c['paperId'], max_level, cur_level + 1)
+def bfs(start_node_id, depth):
+    todo = [(start_node_id, 0)]
+    nodes_dict = {}
 
+    while len(todo) > 0:
+        node_id, node_depth = todo.pop(0)
+
+        # If node already visited no need to visit again
+        if node_id in nodes_dict:
+            continue
+
+        # Save
+        node = get_node(node_id)
+        nodes_dict[node.id] = node
+
+        # print
+        spacer_str = ''.join(['-' for _ in range(node_depth)])
+        print(f"{spacer_str} {node.id} ({len(node.children)})")
+
+        # If we are too deep continue
+        if node_depth > depth:
+            node.leaf = True
+            continue
+
+        # Add children to visit stack
+        for next_node_id in node.children:
+            todo.append((next_node_id, node_depth + 1))
+
+    return nodes_dict
+
+
+# Graph creation
 
 def create_graph(nodes_dict):
     G = nx.DiGraph()
@@ -138,7 +163,7 @@ def plot_graph(G, labels, sizes, years):
                                    pad=0,
                                    ),
                        hovermode='closest',
-                       annotations = arrows_annotations
+                       annotations=arrows_annotations
                        )
 
     fig = go.Figure(data=[trace_nodes], layout=layout)
@@ -153,62 +178,10 @@ def render_graph(nodes_dict):
     plot_graph(G, labels, sizes, years)
 
 
-def bfs(start_node_id, depth):
-    todo = [(start_node_id, 0)]
-    nodes_dict = {}
-
-    while len(todo) > 0:
-        node_id, node_depth = todo.pop(0)
-
-        # If node already visited no need to visit again
-        if node_id in nodes_dict:
-            continue
-
-        # Save
-        node = get_node(node_id)
-        nodes_dict[node.id] = node
-
-        # print
-        spacer_str = ''.join(['-' for _ in range(node_depth)])
-        print(f"{spacer_str} {node.id} ({len(node.children)})")
-
-        # If we are too deep continue
-        if node_depth > depth:
-            node.leaf = True
-            continue
-
-        # Add children to visit stack
-        for next_node_id in node.children:
-            todo.append((next_node_id, node_depth + 1))
-
-    return nodes_dict
-
-
-def get_node(id):
-    data = get_paper_json(id)
-    citation_ids = []
-    for citation in data['citations']:
-        if citation['isInfluential']:
-            citation_ids.append(citation["paperId"])
-    return Node(id, citation_ids, data)
-
-
-class Node:
-    def __init__(self, id, children, data):
-        self.id = id
-        self.children = children
-        self.data = data
-        self.leaf = False
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", action="store_true",
-                        help="Forward (citations) drawing)")
     parser.add_argument("-d", type=int, default=2,
                         help="Recursion depth")
-    # parser.add_argument("-id", action="append", required=True,
-    #                       help="Paper ID in SemanticScholar")
     parser.add_argument("-id", required=True,
                         help="Paper ID in SemanticScholar")
     args = parser.parse_args()
@@ -216,6 +189,5 @@ if __name__ == "__main__":
     if not os.path.exists("papers"):
         os.mkdir("papers")
 
-    # render_graph(args.id, args.d, args.f)
     nodes_dict = bfs(args.id, args.d)
     render_graph(nodes_dict)
