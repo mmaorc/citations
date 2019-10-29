@@ -76,8 +76,8 @@ def bfs(start_node_id, depth, get_node):
         nodes_dict[node.id] = node
 
         # print
-        spacer_str = ''.join(['-' for _ in range(node_depth)])
-        print(f"{spacer_str} {node.id} ({len(node.children)})")
+        #spacer_str = ''.join(['-' for _ in range(node_depth)])
+        #print(f"{spacer_str} {node.id} ({len(node.children)})")
 
         # If we are too deep continue
         if node_depth > depth:
@@ -193,7 +193,9 @@ def plot_graph(G, labels, sizes, years):
                        )
 
     fig = go.Figure(data=[trace_nodes], layout=layout)
-    plotly.offline.plot(fig, auto_open=True)
+    plotly.io.write_html(fig, file="output.html", auto_open=False)
+    with open("output.html", "r") as f:
+        print(f.read())
 
 
 def render_graph(nodes_dict):
