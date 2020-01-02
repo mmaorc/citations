@@ -7,8 +7,9 @@ import numpy as np
 from networkx.drawing.nx_agraph import graphviz_layout
 import scrapy
 from scrapy.crawler import CrawlerProcess
-from refgraph.refgraph.spiders.citations import CitationsSpider
+from refgraph.spiders.citations import CitationsSpider
 from pathlib import Path
+import os
 
 
 # Graph creation
@@ -127,6 +128,7 @@ def render_graph(nodes_dict, output_filepath):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cache_dirpath", default="output/cache")
+    parser.add_argument("--httpcache_dirpath", default="output/httpcache")
     parser.add_argument("--output_filepath", default="output/output.html")
     parser.add_argument("--paper_id", required=True)
     args = parser.parse_args()
@@ -141,6 +143,8 @@ if __name__ == "__main__":
             'FEED_FORMAT': 'json',
             'FEED_URI': str(paper_json_path),
             'LOG_LEVEL': 'INFO',
+            'HTTPCACHE_ENABLED': True,
+            'HTTPCACHE_DIR': os.path.join("../", str(args.httpcache_dirpath))
         })
         process.crawl(CitationsSpider, start_id=args.paper_id)
         process.start()
