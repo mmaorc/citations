@@ -1,7 +1,6 @@
 ## Project custom
-temp/
-papers/
-temp-plot.html
+/cache/
+/output.html
 
 
 ## Python

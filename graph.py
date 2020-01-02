@@ -1,94 +1,14 @@
-from pathlib import Path
 import json
 import argparse
-import os
 import networkx as nx
 import plotly
 import plotly.graph_objs as go
 import numpy as np
 from networkx.drawing.nx_agraph import graphviz_layout
-import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-
-
-# Paper scanning
-
-class Node:
-    def __init__(self, id, children, data):
-        self.id = id
-        self.children = children
-        self.data = data
-        self.leaf = False
-
-
-def get_paper_json(paper_id):
-    paper_info_filepath = rf"papers/{paper_id}.json"
-    if Path(paper_info_filepath).exists():
-        contents = Path(paper_info_filepath).read_text()
-    else:
-        contents = request_paper(paper_id)
-        Path(paper_info_filepath).write_bytes(contents)
-    contents = json.loads(contents)
-    if "error" in contents.keys():
-        return None
-    return contents
-
-
-def request_paper(paper_id):
-    s = requests.Session()
-    retries = Retry(total=5,
-                    backoff_factor=1,
-                    status_forcelist=[502, 503, 504])
-    s.mount('https://', HTTPAdapter(max_retries=retries))
-    d = s.get(f"https://api.semanticscholar.org/v1/paper/{paper_id}")
-    return d.content
-
-
-def get_node(id, extended=False):
-    data = get_paper_json(id)
-    if data is None:
-        return None
-    citation_ids = []
-    for citation in data['citations']:
-        if extended or citation['isInfluential']:
-            citation_ids.append(citation["paperId"])
-    return Node(id, citation_ids, data)
-
-
-def bfs(start_node_id, depth, get_node):
-    todo = [(start_node_id, 0)]
-    nodes_dict = {}
-
-    while len(todo) > 0:
-        node_id, node_depth = todo.pop(0)
-
-        # If node already visited no need to visit again
-        if node_id in nodes_dict:
-            continue
-
-        # Get the node data
-        node = get_node(node_id)
-        if node is None:
-            continue
-
-        # Save
-        nodes_dict[node.id] = node
-
-        # print
-        #spacer_str = ''.join(['-' for _ in range(node_depth)])
-        #print(f"{spacer_str} {node.id} ({len(node.children)})")
-
-        # If we are too deep continue
-        if node_depth > depth:
-            node.leaf = True
-            continue
-
-        # Add children to visit stack
-        for next_node_id in node.children:
-            todo.append((next_node_id, node_depth + 1))
-
-    return nodes_dict
+import scrapy
+from scrapy.crawler import CrawlerProcess
+from refgraph.refgraph.spiders.citations import CitationsSpider
+from pathlib import Path
 
 
 # Graph creation
@@ -99,8 +19,8 @@ def create_graph(nodes_dict):
     edges = []
     for parent_node_id, parent_node in nodes_dict.items():
         nodes.append(parent_node_id)
-        if parent_node.leaf is False:
-            for child_node_id in parent_node.children:
+        if parent_node['leaf'] is False:
+            for child_node_id in parent_node['children']:
                 edges.append((parent_node_id, child_node_id))
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
@@ -109,7 +29,7 @@ def create_graph(nodes_dict):
 
 def calc_labels(nodes_dict):
     href_str = "<a href=\"{}\" style=\"color: inherit; text-decoration: underline;\">{}</a>({})<br>citations: {}"
-    return [href_str.format(node.data['url'], node.data['title'], node.data['year'], len(node.data['citations']))
+    return [href_str.format(node['url'], node['title'], node['year'], len(node['citations']))
             for node in nodes_dict.values()]
 
 
@@ -117,7 +37,7 @@ def calc_sizes(nodes_dict):
     min_size = 10
     max_size = 40
     threshold = 200
-    sizes = np.array([len(node.data['citations'])
+    sizes = np.array([len(node['citations'])
                       for node in nodes_dict.values()])
     sizes[sizes > threshold] = threshold
     range_old = (sizes.max() - sizes.min()) + 1
@@ -128,13 +48,13 @@ def calc_sizes(nodes_dict):
 
 
 def calc_years(nodes_dict):
-    years = [node.data['year'] for node in nodes_dict.values()]
+    years = [node['year'] for node in nodes_dict.values()]
     min_year = min([y for y in years if y is not None])
     years = [y if y is not None else min_year for y in years]
     return years
 
 
-def plot_graph(G, labels, sizes, years):
+def plot_graph(G, labels, sizes, years, output_filepath):
     pos = graphviz_layout(G, prog='dot')
 
     # Nodes
@@ -193,33 +113,41 @@ def plot_graph(G, labels, sizes, years):
                        )
 
     fig = go.Figure(data=[trace_nodes], layout=layout)
-    plotly.io.write_html(fig, file="output.html", auto_open=False)
-    with open("output.html", "r") as f:
-        print(f.read())
+    plotly.io.write_html(fig, file=str(output_filepath), auto_open=False)
 
 
-def render_graph(nodes_dict):
+def render_graph(nodes_dict, output_filepath):
     G = create_graph(nodes_dict)
     labels = calc_labels(nodes_dict)
     sizes = calc_sizes(nodes_dict)
     years = calc_years(nodes_dict)
-    plot_graph(G, labels, sizes, years)
+    plot_graph(G, labels, sizes, years, output_filepath)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", type=int, default=2,
-                        help="Recursion depth")
-    parser.add_argument("-id", required=True,
-                        help="Paper ID in SemanticScholar")
-    parser.add_argument("-extended", action="store_true",
-                        help="Scan non influential as well")
+    parser.add_argument("--cache_dirpath", default="cache")
+    parser.add_argument("--output_filepath", default="output.html")
+    parser.add_argument("--paper_id", required=True)
     args = parser.parse_args()
 
-    if not os.path.exists("papers"):
-        os.mkdir("papers")
+    cache_dirpath = Path(args.cache_dirpath)
+    paper_json_path = cache_dirpath/f"{args.paper_id}.json"
+    output_filepath = Path(args.output_filepath)
 
-    get_node_lam = lambda id: get_node(id, args.extended)
+    # Run the spider if necessary
+    if not paper_json_path.exists():
+        process = CrawlerProcess(settings={
+            'FEED_FORMAT': 'json',
+            'FEED_URI': str(paper_json_path),
+            'LOG_LEVEL': 'INFO',
+        })
+        process.crawl(CitationsSpider, start_id=args.paper_id)
+        process.start()
 
-    nodes_dict = bfs(args.id, args.d, get_node_lam)
-    render_graph(nodes_dict)
+    # Draw the graph
+    with open(paper_json_path) as f:
+        nodes = json.load(f)
+    nodes_dict = {n['id']: n for n in nodes}
+
+    render_graph(nodes_dict, output_filepath)
