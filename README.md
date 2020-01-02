@@ -31,7 +31,7 @@ Let's make a graph starting from the paper ["Meta clustering"](https://www.seman
 1. We get the Semantic Scholar id from the url: 4127d83c9eef22918f16a7477ca6e60734c87d8b
 2. We use the graph.py script to create the graph from the paper's id, and scan 5 citation-levels deep:
 ```
-docker run --rm reference-grape -id 4127d83c9eef22918f16a7477ca6e60734c87d8b -d 5 > output.html
+docker run --rm -it -v $(pwd)/output:/myapp/output reference-graph --paper_id 2de0a40e9a5d4f1feb07d61af5a5d87a069653f0
 ```
 
 For more arguments:

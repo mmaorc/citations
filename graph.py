@@ -126,8 +126,8 @@ def render_graph(nodes_dict, output_filepath):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cache_dirpath", default="cache")
-    parser.add_argument("--output_filepath", default="output.html")
+    parser.add_argument("--cache_dirpath", default="output/cache")
+    parser.add_argument("--output_filepath", default="output/output.html")
     parser.add_argument("--paper_id", required=True)
     args = parser.parse_args()
 
