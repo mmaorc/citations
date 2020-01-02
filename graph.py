@@ -131,23 +131,26 @@ if __name__ == "__main__":
     parser.add_argument("--httpcache_dirpath", default="output/httpcache")
     parser.add_argument("--output_filepath", default="output/output.html")
     parser.add_argument("--paper_id", required=True)
+    parser.add_argument("--depth", type=int, default=1, required=True)
     args = parser.parse_args()
 
     cache_dirpath = Path(args.cache_dirpath)
     paper_json_path = cache_dirpath/f"{args.paper_id}.json"
     output_filepath = Path(args.output_filepath)
 
-    # Run the spider if necessary
-    if not paper_json_path.exists():
-        process = CrawlerProcess(settings={
-            'FEED_FORMAT': 'json',
-            'FEED_URI': str(paper_json_path),
-            'LOG_LEVEL': 'INFO',
-            'HTTPCACHE_ENABLED': True,
-            'HTTPCACHE_DIR': os.path.join("../", str(args.httpcache_dirpath))
-        })
-        process.crawl(CitationsSpider, start_id=args.paper_id)
-        process.start()
+    if paper_json_path.exists():
+        paper_json_path.unlink()
+
+    # Run the spider
+    process = CrawlerProcess(settings={
+        'FEED_FORMAT': 'json',
+        'FEED_URI': str(paper_json_path),
+        'LOG_LEVEL': 'INFO',
+        'HTTPCACHE_ENABLED': True,
+        'HTTPCACHE_DIR': os.path.join("../", str(args.httpcache_dirpath))
+    })
+    process.crawl(CitationsSpider, start_id=args.paper_id, depth=args.depth)
+    process.start()
 
     # Draw the graph
     with open(paper_json_path) as f:
